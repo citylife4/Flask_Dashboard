@@ -10,41 +10,41 @@ login_manager.init_app(app)
 DATABASE = 'database.db'
 
 
-
-def get_db():
-    db = getattr(g, '_database', None)
-    if db is None:
-        db = g._database = sqlite3.connect(DATABASE)
-    return db
-
-
-def init_db():
-    with app.app_context():
-        db = get_db()
-        with app.open_resource('schema.sql', mode='r') as f:
-            db.cursor().executescript(f.read())
-        db.commit()
-
-
-@app.teardown_appcontext
-def close_connection(exception):
-    db = getattr(g, '_database', None)
-    if db is not None:
-        db.close()
-
-
-class User(UserMixin):
-    # proxy for a database of users
-    user_database = {"JohnDoe": ("JohnDoe", "John"),
-                     "JaneDoe": ("JaneDoe", "Jane")}
-
-    def __init__(self, username, password):
-        self.id = username
+class User():
+    def __init__(self, name, email, password, active=True):
+        self.name = name
+        self.email = email
         self.password = password
+        self.active = active
 
-    @classmethod
-    def get(cls, id):
-        return cls.user_database.get(id)
+    @staticmethod
+    def is_authenticated():
+        return True
+        # return true if user is authenticated, provided credentials
+
+    @staticmethod
+    def is_active():
+        return True
+        # return true if user is activte and authenticated
+
+    def is_annonymous():
+        return False
+        # return true if annon, actual user return false
+
+    def get_id():
+        return unicode(self.id)
+        # return unicode id for user, and used to load user from user_loader callback
+
+    def __repr__(self):
+        return '<User %r>' % (self.email)
+
+    def add(self):
+        db_handler.insert_user(self.username, self.password)
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    return db_handler.load_user(user_id)
 
 
 @login_manager.request_loader
@@ -65,6 +65,7 @@ def load_user(request):
 
 @app.route('/', methods=['POST', 'GET'])
 def home():
+    form = Login()
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']

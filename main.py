@@ -1,6 +1,7 @@
-from flask import Flask, render_template, redirect, url_for, request, Response, g
+from flask import Flask, render_template, redirect, url_for, request, Response, flash, session
 from flask_login import LoginManager, UserMixin, login_required
 import sqlite3
+from wtforms import Form, BooleanField, StringField, PasswordField, TextField, validators
 import models as db_handler
 
 app = Flask(__name__)
@@ -42,6 +43,11 @@ class User():
         db_handler.insert_user(self.username, self.password)
 
 
+class LoginForm(Form):
+    username = StringField('Username', [validators.DataRequired()])
+    password = PasswordField('Password', [validators.DataRequired()])
+
+
 @login_manager.user_loader
 def load_user(user_id):
     return db_handler.load_user(user_id)
@@ -64,24 +70,20 @@ def load_user(request):
 
 
 @app.route('/', methods=['POST', 'GET'])
-def home():
-    form = Login()
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        if password == db_handler.get_password(username):
-            users = db_handler.retrieve_users()
-            return render_template('LoginForm.html', users=users)
-        else:
-            return render_template('LoginForm.html', users='wrong')
-    else:
-        return render_template('LoginForm.html')
+def login():
+    form = LoginForm()
+    print(request.values)
+    if request.method == 'POST' and form.validate():
+        flash(u'Successfully logged in as %s' % form.user.username)
+        session['user_id'] = form.user.id
+        return redirect(url_for('protected'))
+    return render_template('LoginForm.html', form=form)
 
 
 @app.route("/protected/", methods=["GET"])
 @login_required
 def protected():
-    return Response(response="Hello Protected World!", status=200)
+    return render_template('dashboard.html')
 
 
 if __name__ == '__main__':

@@ -1,1 +1,2 @@
 https://blog.openshift.com/use-flask-login-to-add-user-authentication-to-your-python-application/
+https://github.com/doobeh/scudbot/wiki/Using-Flask-Login

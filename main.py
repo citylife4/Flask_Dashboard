@@ -1,43 +1,66 @@
-from flask import Flask, render_template, redirect, url_for, request, Response, flash, session
-from flask_login import LoginManager, UserMixin, login_required
-import sqlite3
 from wtforms import Form, BooleanField, StringField, PasswordField, TextField, validators
 import models as db_handler
+from datetime import datetime
+from flask import Flask, session, request, flash, url_for, redirect, render_template, abort, g
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager
+from flask_login import login_user, logout_user, current_user, login_required
+import sqlite3
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
+
+app.config.from_pyfile('config.cfg')
+
+db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 
+login_manager.login_view = 'login'
 DATABASE = 'database.db'
 
 
-class User():
-    def __init__(self, name, email, password, active=True):
-        self.name = name
-        self.email = email
-        self.password = password
-        self.active = active
+class User(db.Model):
+    __tablename__ = "users"
+    id = db.Column('id', db.Integer, primary_key=True)
+    username = db.Column('username', db.String(20), unique=True, index=True)
+    password = db.Column('password', db.String(10))
+    #email = db.Column('email', db.String(50), unique=True, index=True)
+    #registered_on = db.Column('registered_on', db.DateTime)
 
-    @staticmethod
-    def is_authenticated():
+    def __init__(self, username, password, email):
+        self.username = username
+        self.password = password
+        self.email = email
+        self.registered_on = datetime.utcnow()
+
+
+    @property
+    def is_authenticated(self):
         return True
         # return true if user is authenticated, provided credentials
 
-    @staticmethod
-    def is_active():
+    @property
+    def is_active(self):
         return True
         # return true if user is activte and authenticated
 
-    def is_annonymous():
+    @property
+    def is_annonymous(self):
         return False
         # return true if annon, actual user return false
 
-    def get_id():
+    @property
+    def get_id(self):
         return unicode(self.id)
         # return unicode id for user, and used to load user from user_loader callback
 
+    def check_password(self, password):
+        # return check_password_hash(self.password, password)
+        return self.password == password
+
     def __repr__(self):
-        return '<User %r>' % (self.email)
+        return '<User %r>' % self.username
 
     def add(self):
         db_handler.insert_user(self.username, self.password)
@@ -48,44 +71,53 @@ class LoginForm(Form):
     password = PasswordField('Password', [validators.DataRequired()])
 
 
-@login_manager.user_loader
-def load_user(user_id):
-    return db_handler.load_user(user_id)
+@app.route('/')
+@login_required
+def index():
+    return render_template('dashboard.html')
 
 
-@login_manager.request_loader
-def load_user(request):
-    token = request.headers.get('Authorization')
-    if token is None:
-        token = request.args.get('token')
-
-    if token is not None:
-        username, password = token.split(":")  # naive token
-        user_entry = User.get(username)
-        if user_entry is not None:
-            user = User(user_entry[0], user_entry[1])
-            if user.password == password:
-                return user
-    return None
-
-
-@app.route('/', methods=['POST', 'GET'])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
     form = LoginForm()
-    print(request.values)
-    if request.method == 'POST' and form.validate():
-        flash(u'Successfully logged in as %s' % form.user.username)
-        session['user_id'] = form.user.id
-        return redirect(url_for('protected'))
-    return render_template('LoginForm.html', form=form)
+    if request.method == 'GET':
+        return render_template('LoginForm.html', form=form)
+
+    username = request.form['username']
+    password = request.form['password']
+    remember_me = False
+    if 'remember_me' in request.form:
+        remember_me = True
+
+    registered_user = User.query.filter_by(username=username).first()
+    if registered_user is None:
+        flash('Username is invalid', 'error')
+        return redirect(url_for('login'))
+    if not registered_user.check_password(password):
+        flash('Password is invalid', 'error')
+        return redirect(url_for('login'))
+    print(registered_user)
+    login_user(registered_user)
+    flash('Logged in successfully')
+    return redirect(request.args.get('next') or url_for('index'))
 
 
-@app.route("/protected/", methods=["GET"])
-@login_required
-def protected():
-    return render_template('dashboard.html')
+@app.route('/logout')
+def logout():
+    logout_user()
+    return redirect(url_for('index'))
+
+
+@login_manager.user_loader
+def load_user(id):
+    return User.query.get(int(id))
+
+
+@app.before_request
+def before_request():
+    g.user = current_user
 
 
 if __name__ == '__main__':
     app.config["SECRET_KEY"] = "ITSASECRET"
-app.run(port=5000, debug=True)
+    app.run(port=5000, debug=True)

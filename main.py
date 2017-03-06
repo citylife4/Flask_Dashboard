@@ -3,8 +3,7 @@ import models as db_handler
 from datetime import datetime
 from flask import Flask, session, request, flash, url_for, redirect, render_template, abort, g
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager
-from flask_login import login_user, logout_user, current_user, login_required
+from flask_login import LoginManager, login_user, logout_user, current_user, login_required
 import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -25,8 +24,8 @@ class User(db.Model):
     id = db.Column('id', db.Integer, primary_key=True)
     username = db.Column('username', db.String(20), unique=True, index=True)
     password = db.Column('password', db.String(10))
-    #email = db.Column('email', db.String(50), unique=True, index=True)
-    #registered_on = db.Column('registered_on', db.DateTime)
+    # email = db.Column('email', db.String(50), unique=True, index=True)
+    # registered_on = db.Column('registered_on', db.DateTime)
 
     def __init__(self, username, password, email):
         self.username = username
@@ -50,7 +49,6 @@ class User(db.Model):
         return False
         # return true if annon, actual user return false
 
-    @property
     def get_id(self):
         return unicode(self.id)
         # return unicode id for user, and used to load user from user_loader callback
@@ -96,7 +94,6 @@ def login():
     if not registered_user.check_password(password):
         flash('Password is invalid', 'error')
         return redirect(url_for('login'))
-    print(registered_user)
     login_user(registered_user)
     flash('Logged in successfully')
     return redirect(request.args.get('next') or url_for('index'))
@@ -110,6 +107,7 @@ def logout():
 
 @login_manager.user_loader
 def load_user(id):
+    print("asd")
     return User.query.get(int(id))
 
 
